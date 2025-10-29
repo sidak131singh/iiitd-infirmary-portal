@@ -1,0 +1,201 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STUDENT)
+  studentId String?  @unique // Only for students
+  phone     String?
+  
+  // Doctor-specific fields
+  isCheckedIn       Boolean? @default(false) // Check-in status for doctors
+  
+  // Medical Information (primarily for students)
+  height              Float?  // Height in cm
+  weight              Float?  // Weight in kg
+  bloodGroup          String? // Blood group (A+, B+, O+, AB+, A-, B-, O-, AB-)
+  pastMedicalHistory  String? @db.Text // Detailed past medical history
+  currentMedications  String? @db.Text // Current medications being taken
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studentAppointments Appointment[] @relation("StudentAppointments")
+  doctorAppointments  Appointment[] @relation("DoctorAppointments")
+  prescriptions       Prescription[]
+  doctorLeaves        DoctorLeave[]
+  auditLogs          AuditLog[]
+  accounts           Account[]
+  sessions           Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  date        DateTime
+  timeSlot    String
+  reason      String
+  status      AppointmentStatus @default(PENDING)
+  notes       String?
+  
+  studentId   String
+  doctorId    String
+  
+  student     User @relation("StudentAppointments", fields: [studentId], references: [id])
+  doctor      User @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  
+  prescription Prescription?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("appointments")
+}
+
+model Prescription {
+  id           String @id @default(cuid())
+  diagnosis    String
+  notes        String?
+  
+  appointmentId String @unique
+  doctorId     String
+  studentId    String
+  
+  appointment  Appointment @relation(fields: [appointmentId], references: [id])
+  doctor       User @relation(fields: [doctorId], references: [id])
+  
+  medications  PrescriptionMedication[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("prescriptions")
+}
+
+model Medicine {
+  id          String @id @default(cuid())
+  name        String @unique
+  category    String
+  quantity    Int
+  threshold   Int    @default(10)
+  dosage      String
+  price       Float  @default(0.0)
+  
+  prescriptionMedications PrescriptionMedication[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("medicines")
+}
+
+model PrescriptionMedication {
+  id             String @id @default(cuid())
+  prescriptionId String
+  medicineId     String
+  dosage         String
+  frequency      String
+  duration       String
+  instructions   String?
+  dispensed      Boolean @default(false)
+  dispensedAt    DateTime?
+  
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  medicine       Medicine @relation(fields: [medicineId], references: [id])
+  
+  @@map("prescription_medications")
+}
+
+model DoctorLeave {
+  id        String   @id @default(cuid())
+  doctorId  String
+  date      DateTime
+  reason    String?
+  approved  Boolean  @default(false)
+  
+  doctor    User @relation(fields: [doctorId], references: [id])
+  
+  createdAt DateTime @default(now())
+
+  @@map("doctor_leaves")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  details   Json?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  
+  user      User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+enum Role {
+  STUDENT
+  DOCTOR
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
