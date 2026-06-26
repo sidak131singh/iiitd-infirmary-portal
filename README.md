@@ -1,5 +1,6 @@
 # Infirmary Portal Setup Guide
 ## Live Deplaoyement Link : https://infirmary-portal.vercel.app/login
+(see Demo credentials below for login)
 
 ## 🏥 IIIT Delhi Infirmary Management System
 
